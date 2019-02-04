@@ -81,18 +81,21 @@ class MLP:
         self.grad_oa = self.os - onehot(Y,self.output_size).T
         self.grad_w3 = np.dot(self.grad_oa, self.h2.T)
         self.grad_b3 = self.grad_oa
-        self.W3 -= learning_rate * self.grad_w3
-        self.b3 -= learning_rate * self.grad_b3.sum(axis=1).reshape((-1,1)) / self.grad_b3.shape[1]
 
         self.grad_h2 = np.dot(self.W3.T, self.grad_oa)
         self.grad_w2 = np.dot(self.grad_h2, self.h1.T)
         self.grad_b2 = self.grad_h2
-        self.W2 -= learning_rate * self.grad_w2
-        self.b2 -= learning_rate * self.grad_b2.sum(axis=1).reshape((-1,1)) / self.grad_b2.shape[1]
 
         self.grad_h1 = np.dot(self.W2.T, self.grad_h2)
         self.grad_w1 = np.dot(self.grad_h1, self.X)
         self.grad_b1 = self.grad_h1
+        
+        self.W3 -= learning_rate * self.grad_w3
+        self.b3 -= learning_rate * self.grad_b3.sum(axis=1).reshape((-1,1)) / self.grad_b3.shape[1]
+
+        self.W2 -= learning_rate * self.grad_w2
+        self.b2 -= learning_rate * self.grad_b2.sum(axis=1).reshape((-1,1)) / self.grad_b2.shape[1]
+
         self.W1 -= learning_rate * self.grad_w1
         self.b1 -= learning_rate * self.grad_b1.sum(axis=1).reshape((-1,1)) / self.grad_b2.shape[1]
 
@@ -109,7 +112,7 @@ class MLP:
                 pred += np.sum( (np.argmax(self.os,axis=0) == Y[i_min:i_max] ).astype(int) )
 
                 print("Epoch "+str(epoch+1)+"/"+str(epochs)+"\tExamples "+str(i_max)+"/"+
-                    '{:.3f}'.format(X.shape[0])+"\tRealtime accuracy :"+'{:.3f}'.format(pred/i_max),end='\r')
+                    str(X.shape[0])+"\tRealtime accuracy :"+'{:.3f}'.format(pred/i_max),end='\r')
             # print("Epoch "+str(epoch+1)+"/"+str(epochs)+"\tFinal accuracy :"+str(self.evaluate(X,Y)))
             print("Epoch "+str(epoch+1)+"/"+str(epochs)+"\tExamples "+str(i_max)+"/"+
                 str(X.shape[0])+"\tRealtime accuracy :"+'{:.3f}'.format(pred/i_max)+"\tFinal accuracy :"+'{:.3f}'.format(self.evaluate(X,Y)) )
