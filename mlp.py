@@ -3,6 +3,7 @@ import numpy as np
 import math
 import sys
 import time
+import pickle
 
 # def softmax(x, c = 1):
 #     """Compute softmax values for each sets of scores in x."""
@@ -129,7 +130,14 @@ class MLP_2L:
         print("Input dimension {:d}\tLayer 1 dimension {:d}\tLayer 2 dimension {:d}\tOutput dimension {:d}\t Initilization method {:s}\tActivation function {:s}".format(input_size, n1, n2, output_size, init, str(activation)))
         print("Total number of parameters : {:d}".format(n_parameter))
 
+        self.input_size = input_size
+        self.n1 = n1
+        self.n2 = n2
         self.output_size = output_size
+        self.c = c
+        self.l1 = l1
+        self.l2 =l2
+
         if activation == "identity":
             self.activation = Identity()
         elif activation == "sigmoid":
@@ -139,42 +147,42 @@ class MLP_2L:
         elif activation=="tanh":
             self.activation = Tanh()
         else :
-            self.activation = activation
+            raise ValueError("activation must be 'identity', 'sigmoid', 'relu' or 'tanh'")
 
-        self.l1 = l1
-        self.l2 =l2
 
         if init == "normal":
-            self.W1 = np.random.normal(size=(n1, input_size))
-            self.W2 = np.random.normal(size=(n2, n1))
-            self.W3 = np.random.normal(size=(output_size, n2))
+            self.w1 = np.random.normal(size=(n1, input_size))
+            self.w2 = np.random.normal(size=(n2, n1))
+            self.w3 = np.random.normal(size=(output_size, n2))
         elif init == "zeros":
-            self.W1 = np.zeros(shape=(n1, input_size))
-            self.W2 = np.zeros(shape=(n2, n1))
-            self.W3 = np.zeros(shape=(output_size, n2))
+            self.w1 = np.zeros(shape=(n1, input_size))
+            self.w2 = np.zeros(shape=(n2, n1))
+            self.w3 = np.zeros(shape=(output_size, n2))
         elif init == "glorot":
             d1 = math.sqrt(6 / (input_size+n1))
             d2 = math.sqrt(6 / (n1 + n2))
             d3 = math.sqrt(6 / (n2 + output_size))
-            self.W1 = np.random.uniform(-d1, d1, size=(n1, input_size))
-            self.W2 = np.random.uniform(-d2, d2,size=(n2, n1))
-            self.W3 = np.random.uniform(-d3, d3,size=(output_size, n2))
+            self.w1 = np.random.uniform(-d1, d1, size=(n1, input_size))
+            self.w2 = np.random.uniform(-d2, d2,size=(n2, n1))
+            self.w3 = np.random.uniform(-d3, d3,size=(output_size, n2))
+        elif init=="load":
+            pass
+        else:
+            raise ValueError("init must be 'normal', 'zeros' or 'glorot'")
 
         self.b1 = np.zeros((n1, 1))
         self.b2 = np.zeros((n2, 1))
         self.b3 = np.zeros((output_size, 1))
 
-        self.c = c
-
     def fprop(self, X):
         self.X=X
-        self.a1 = np.dot(self.W1, X.T ) + self.b1
+        self.a1 = np.dot(self.w1, X.T ) + self.b1
         self.h1 = self.activation(self.a1)
 
-        self.a2 = np.dot(self.W2, self.h1 ) + self.b2
+        self.a2 = np.dot(self.w2, self.h1 ) + self.b2
         self.h2 = self.activation(self.a2)
 
-        self.oa = np.dot(self.W3, self.h2 ) + self.b3
+        self.oa = np.dot(self.w3, self.h2 ) + self.b3
         self.os = softmax(self.oa, self.c)
 
     def bprop(self, Y, learning_rate):
@@ -184,28 +192,39 @@ class MLP_2L:
 
         batch_size = Y.size
 
-        self.grad_oa = self.os - onehot(Y,self.output_size).T
-        self.grad_w3 = np.dot(self.grad_oa, self.h2.T) + self.l1 * self.W3 / ( np.abs(self.W3) + (self.W3 == 0).astype(int) ) + 2 * self.l2 * self.W3
-        self.grad_b3 = self.grad_oa + self.l1 * self.b3 / ( np.abs(self.b3) + (self.b3 == 0).astype(int) ) + 2 * self.l2 * self.b3
+        #compute the gradient
 
-        self.grad_h2 = np.dot(self.W3.T, self.grad_oa)
+        #output layer
+        self.grad_oa = self.os - onehot(Y,self.output_size).T
+        self.grad_w3 = np.dot(self.grad_oa, self.h2.T) #without regularizer
+        self.grad_w3 += self.l1 * self.w3 / ( np.abs(self.w3) + (self.w3 == 0).astype(int) ) #add l1 regularizer
+        self.grad_w3 += 2 * self.l2 * self.w3 # add l2 regularizer
+        self.grad_b3 = self.grad_oa #without regularizer
+        self.grad_b3 += self.l1 * self.b3 / ( np.abs(self.b3) + (self.b3 == 0).astype(int) ) #add l1 regularizer
+        self.grad_b3 +=  2 * self.l2 * self.b3 #add l2 regularizer
+
+        #2nd layer
+        self.grad_h2 = np.dot(self.w3.T, self.grad_oa)
         self.grad_a2 = self.grad_h2 * self.activation.derivative(self.a2)
-        self.grad_w2 = np.dot(self.grad_a2, self.h1.T) + + self.l1 * self.W2 / ( np.abs(self.W2) + (self.W2 == 0).astype(int) ) + 2 * self.l2 * self.W2
+        self.grad_w2 = np.dot(self.grad_a2, self.h1.T) + self.l1 * self.w2 / ( np.abs(self.w2) + (self.w2 == 0).astype(int) ) + 2 * self.l2 * self.w2
         self.grad_b2 = self.grad_h2 + self.l1 * self.b2 / ( np.abs(self.b2) + (self.b2 == 0).astype(int) ) + 2 * self.l2 * self.b2
 
-        self.grad_h1 = np.dot(self.W2.T, self.grad_h2)
+        #1st layer
+        self.grad_h1 = np.dot(self.w2.T, self.grad_h2)
         self.grad_a1 = self.grad_h1 * self.activation.derivative(self.a1)
-        self.grad_w1 = np.dot(self.grad_a1, self.X) + self.l1 * self.W1 / ( np.abs(self.W1) + (self.W1 == 0).astype(int) ) + 2 * self.l2 * self.W1
+        self.grad_w1 = np.dot(self.grad_a1, self.X) + self.l1 * self.w1 / ( np.abs(self.w1) + (self.w1 == 0).astype(int) ) + 2 * self.l2 * self.w1
         self.grad_b1 = self.grad_h1 + self.l1 * self.b1 / ( np.abs(self.b1) + (self.b1 == 0).astype(int) ) + 2 * self.l2 * self.b1
 
-        self.W3 -= learning_rate * self.grad_w3 / batch_size
+        #weight update
+        self.w3 -= learning_rate * self.grad_w3 / batch_size
         self.b3 -= learning_rate * self.grad_b3.sum(axis=1).reshape((-1,1)) / batch_size
 
-        self.W2 -= learning_rate * self.grad_w2 / batch_size
+        self.w2 -= learning_rate * self.grad_w2 / batch_size
         self.b2 -= learning_rate * self.grad_b2.sum(axis=1).reshape((-1,1)) / batch_size
 
-        self.W1 -= learning_rate * self.grad_w1 / batch_size
+        self.w1 -= learning_rate * self.grad_w1 / batch_size
         self.b1 -= learning_rate * self.grad_b1.sum(axis=1).reshape((-1,1)) / batch_size
+
 
     def train(self,X, Y, epochs, batch_size, learning_rate):
         train_time = time.time()
@@ -223,7 +242,7 @@ class MLP_2L:
                 print("Epoch {:d}/{:d}\tExamples {:d}/{:d}\tAccuracy {:.3f}\tEpoch time {:.2f}s\tTraining time {:.2f}s".format(epoch+1, epochs, i_max, X.shape[0], pred/i_max, time.time() - epoch_time, time.time() - train_time), end='\r')
             print("Epoch {:d}/{:d}\tExamples {:d}/{:d}\tAccuracy {:.3f}\tEpoch time {:.2f}s\tTraining time {:.2f}s".format(epoch+1, epochs, i_max, X.shape[0], pred/i_max, time.time() - epoch_time, time.time() - train_time))
 
-            if np.isnan(self.W1).any() :
+            if np.isnan(self.w1).any() :
                 sys.exit("ERROR : The parameters contain NaNs. Use a smaller learning rate.")
         print("Total training time {:.2f}s".format(time.time() - train_time))
 
@@ -234,3 +253,39 @@ class MLP_2L:
     def evaluate(self, X, Y):
         pred = self.predict(X)
         return np.sum((pred==Y).astype(int))/Y.size
+
+    def save(self,filename):
+        tmp = dict()
+        tmp["input_size"] = self.input_size
+        tmp["n1"] = self.n1
+        tmp["n2"] = self.n2
+        tmp["output_size"] = self.output_size
+        tmp["w1"] = self.w1
+        tmp["b1"] = self.b1
+        tmp["w2"] = self.w2
+        tmp["b2"] = self.b2
+        tmp["w3"] = self.w3
+        tmp["b3"] = self.b3
+
+        tmp["l1"] = self.l1
+        tmp["l2"] = self.l2
+
+        tmp["c"] = self.c
+
+        tmp["activation"] = str(self.activation)
+
+        with open(filename, 'wb') as handle:
+            pickle.dump(tmp, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def load_model(filename):
+        with open(filename, 'rb') as handle:
+            dic = pickle.load(handle)
+        tmp = MLP_2L(dic["input_size"], dic["n1"], dic["n2"], dic["output_size"], init="load", activation=dic["activation"], c=dic["c"], l1=dic["l1"], l2=dic["l2"])
+
+        tmp.w1 = dic["w1"]
+        tmp.b1 = dic["b1"]
+        tmp.w2 = dic["w2"]
+        tmp.b2 = dic["b2"]
+        tmp.w3 = dic["w3"]
+        tmp.b3 = dic["b3"]
+        return tmp
