@@ -226,7 +226,7 @@ class MLP_2L:
         self.b1 -= learning_rate * self.grad_b1.sum(axis=1).reshape((-1,1)) / batch_size
 
 
-    def train(self,X, Y, epochs, batch_size, learning_rate):
+    def fit(self,X, Y, epochs, batch_size, learning_rate):
         train_time = time.time()
         for epoch in range(epochs):
             epoch_time = time.time()
@@ -240,7 +240,7 @@ class MLP_2L:
 
                 pred += np.sum( (np.argmax(self.os,axis=0) == Y[i_min:i_max] ).astype(int) )
                 print("Epoch {:d}/{:d}\tExamples {:d}/{:d}\tAccuracy {:.3f}\tEpoch time {:.2f}s\tTraining time {:.2f}s".format(epoch+1, epochs, i_max, X.shape[0], pred/i_max, time.time() - epoch_time, time.time() - train_time), end='\r')
-            print("Epoch {:d}/{:d}\tExamples {:d}/{:d}\tAccuracy {:.3f}\tEpoch time {:.2f}s\tTraining time {:.2f}s".format(epoch+1, epochs, i_max, X.shape[0], pred/i_max, time.time() - epoch_time, time.time() - train_time))
+            print("Epoch {:d}/{:d}\tExamples {:d}/{:d}\tAccuracy {:.3f}\tEpoch time {:.2f}s\tTraining time {:.2f}s".format(epoch+1, epochs, i_max, X.shape[0], self.evaluate(X,Y) , time.time() - epoch_time, time.time() - train_time))
 
             if np.isnan(self.w1).any() :
                 sys.exit("ERROR : The parameters contain NaNs. Use a smaller learning rate.")
