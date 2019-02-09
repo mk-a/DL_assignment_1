@@ -54,8 +54,8 @@ class Identity(Activation_function):
         return "identity"
     def __call__(self, x):
         return x
-        def derivative(self, x):
-            return 1.
+    def derivative(self, x):
+        return 1.
 
 class Sigmoid(Activation_function):
     def __str__(self):
@@ -87,7 +87,7 @@ class Tanh(Activation_function):
 class MLP_2L:
     """ A simple implementation of a multi layers perceptron with two hidden layers. """
     def __init__(self, input_size, n1, n2, output_size, init="normal",\
-                    activation="identity", l1=0, l2=0):
+                    activation="identity", l1=0, l2=0, quiet=False):
         """ Initialises a two layers MLP.
 
             Parameters
@@ -127,8 +127,9 @@ class MLP_2L:
         """
 
         n_parameter = n1 * (input_size + 1) + n2 * (n1 + 1) + output_size * (n2 + 1)
-        print("Input dimension {:d}\tLayer 1 dimension {:d}\tLayer 2 dimension {:d}\tOutput dimension {:d}\t Initilization method {:s}\tActivation function {:s}".format(input_size, n1, n2, output_size, init, str(activation)))
-        print("Total number of parameters : {:d}".format(n_parameter))
+        if not quiet :
+            print("Input dimension {:d}\tLayer 1 dimension {:d}\tLayer 2 dimension {:d}\tOutput dimension {:d}\t Initilization method {:s}\tActivation function {:s}".format(input_size, n1, n2, output_size, init, str(activation)))
+            print("Total number of parameters : {:d}".format(n_parameter))
 
         self.input_size = input_size
         self.n1 = n1
@@ -225,7 +226,7 @@ class MLP_2L:
         self.b1 -= learning_rate * self.grad_b1.sum(axis=1).reshape((-1,1)) / batch_size
 
 
-    def fit(self,X, Y, epochs, batch_size, learning_rate):
+    def fit(self,X, Y, epochs, batch_size, learning_rate, quiet=False):
         train_time = time.time()
         for epoch in range(epochs):
             epoch_time = time.time()
@@ -238,12 +239,15 @@ class MLP_2L:
                 self.bprop(Y[i_min:i_max], learning_rate)
 
                 pred += np.sum( (np.argmax(self.os,axis=0) == Y[i_min:i_max] ).astype(int) )
-                print("Epoch {:d}/{:d}\tExamples {:d}/{:d}\tAccuracy {:.3f}\tEpoch time {:.2f}s\tTraining time {:.2f}s".format(epoch+1, epochs, i_max, X.shape[0], pred/i_max, time.time() - epoch_time, time.time() - train_time), end='\r')
-            print("Epoch {:d}/{:d}\tExamples {:d}/{:d}\tAccuracy {:.3f}\tEpoch time {:.2f}s\tTraining time {:.2f}s".format(epoch+1, epochs, i_max, X.shape[0], self.evaluate(X,Y) , time.time() - epoch_time, time.time() - train_time))
+                if not quiet:
+                    print("Epoch {:d}/{:d}\tExamples {:d}/{:d}\tAccuracy {:.3f}\tEpoch time {:.2f}s\tTraining time {:.2f}s".format(epoch+1, epochs, i_max, X.shape[0], pred/i_max, time.time() - epoch_time, time.time() - train_time), end='\r')
+            if not quiet:
+                print("Epoch {:d}/{:d}\tExamples {:d}/{:d}\tAccuracy {:.3f}\tEpoch time {:.2f}s\tTraining time {:.2f}s".format(epoch+1, epochs, i_max, X.shape[0], self.evaluate(X,Y) , time.time() - epoch_time, time.time() - train_time))
 
             if np.isnan(self.w1).any() :
                 sys.exit("ERROR : The parameters contain NaNs. Use a smaller learning rate.")
-        print("Total training time {:.2f}s".format(time.time() - train_time))
+        if not quiet :
+            print("Total training time {:.2f}s".format(time.time() - train_time))
 
     def predict(self,X):
         self.fprop(X)
@@ -268,8 +272,6 @@ class MLP_2L:
 
         tmp["l1"] = self.l1
         tmp["l2"] = self.l2
-
-        tmp["c"] = self.c
 
         tmp["activation"] = str(self.activation)
 
