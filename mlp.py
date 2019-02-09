@@ -134,7 +134,6 @@ class MLP_2L:
         self.n1 = n1
         self.n2 = n2
         self.output_size = output_size
-        self.c = c
         self.l1 = l1
         self.l2 =l2
 
