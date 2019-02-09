@@ -86,7 +86,7 @@ class Tanh(Activation_function):
 
 class MLP_2L:
     """ A simple implementation of a multi layers perceptron with two hidden layers. """
-    def __init__(self, input_size, n1, n2, output_size, c=1, init="normal",\
+    def __init__(self, input_size, n1, n2, output_size, init="normal",\
                     activation="identity", l1=0, l2=0):
         """ Initialises a two layers MLP.
 
@@ -183,7 +183,7 @@ class MLP_2L:
         self.h2 = self.activation(self.a2)
 
         self.oa = np.dot(self.w3, self.h2 ) + self.b3
-        self.os = softmax(self.oa, self.c)
+        self.os = softmax(self.oa)
 
     def bprop(self, Y, learning_rate):
         """ We assume fprop has been run before bprop
