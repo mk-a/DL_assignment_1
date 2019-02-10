@@ -5,34 +5,19 @@ import sys
 import time
 import pickle
 
-# def softmax(x, c = 1):
-#     """Compute softmax values for each sets of scores in x."""
-#     print(x.shape,x)
-#     e_x = np.exp(c * x - np.max(c*x))
-#     print(e_x.shape,e_x)
-#     return e_x / e_x.sum(axis=1)
-
-def softmax(v, c=1):
+def softmax(v):
     # print(v)
-    e_x = np.exp(c*v - np.amax(c*v, axis=0))
+    e_x = np.exp(v - np.amax(v, axis=0))
     # print(e_x / e_x.sum(axis=0))
     return e_x / e_x.sum(axis=0)
 
 
-def cross_entropy(p,y):
-    """
-    X is the output from fully connected layer (num_examples x num_classes)
-    y is labels (num_examples x 1)
-    	Note that y is not one-hot encoded vector.
-    	It can be computed as y.argmax(axis=1) from one-hot encoded vectors of labels if required.
-    """
-    m = y.shape[0]
-    # We use multidimensional array indexing to extract
-    # softmax probability of the correct label for each sample.
-    # Refer to https://docs.scipy.org/doc/numpy/user/basics.indexing.html#indexing-multi-dimensional-arrays for understanding multidimensional array indexing.
-    log_likelihood = -np.log(p[range(m),y])
-    loss = np.sum(log_likelihood) / m
-    return loss
+def loss(os,Y):
+    """return the average loss over X"""
+    loss = 0
+    for i in range(Y.size):
+        loss -= math.log(os[Y[i],i])
+    return loss/Y.size
 
 
 def onehot(Y, m):
@@ -175,7 +160,7 @@ class MLP_2L:
         self.b3 = np.zeros((output_size, 1))
 
     def fprop(self, X):
-        self.X=X
+        self.X=X #temporary save the input value
         self.a1 = np.dot(self.w1, X.T ) + self.b1
         self.h1 = self.activation(self.a1)
 
@@ -184,7 +169,7 @@ class MLP_2L:
 
         self.oa = np.dot(self.w3, self.h2 ) + self.b3
         self.os = softmax(self.oa)
-
+        return self.os
     def bprop(self, Y, learning_rate):
         """ We assume fprop has been run before bprop
             This function calculate the gradient and update the weights after
@@ -231,7 +216,7 @@ class MLP_2L:
         for epoch in range(epochs):
             epoch_time = time.time()
             pred = 0
-            for i in range(math.ceil(X.shape[0]/batch_size)):
+            for i in range(math.ceil(X.shape[0]/float(batch_size) )):
                 i_min = i * batch_size
                 i_max = min( (i+1) * batch_size, X.shape[0] )
 
@@ -290,3 +275,33 @@ class MLP_2L:
         tmp.w3 = dic["w3"]
         tmp.b3 = dic["b3"]
         return tmp
+
+    def check_grad_w2(self, x, y, index, epsilon):
+        """ return the absolute difference of gradient for the index value of W2 with
+            the finite difference.
+            x must be a two dimensional array with the first dimension equals 1
+            y must be a one dimensional array with only one element.
+        """
+        if index >= self.w1.size:
+            raise ValueError("index out of bounds")
+        self.fprop(x)
+        self.bprop(y, 0) #learning rate = 0 so that the weights are not updated
+
+        i = math.floor(index / self.w2.shape[1])
+        j = index % self.w2.shape[1]
+        #this will allow us to access to the index value of w2 with w2[i,j]
+
+        print("initial value {:.5f}".format(self.w2[i,j]))
+        grad = self.grad_w2[i,j] # store the value of the grad
+        self.w2[i,j] += epsilon # change the value of the index value of w2
+        print("- epsilon {:.5f}".format(self.w2[i,j]))
+        l1 = loss(self.fprop(x),y)
+        self.w2[i,j] -= 2 * epsilon # rechange the index value of w2
+        print("+ epsilon {:.5f}".format(self.w2[i,j]))
+        l2 = loss(self.fprop(x),y)
+
+        self.w2[i,j] += epsilon # reset to the initial value
+        print("initial value after {:.5f}".format(self.w2[i,j]))
+        print("l1 = {:.5f}\tl2 = {:.5f}".format(l1,l2))
+        print("grad={:.5f}\tfinite={:.5f}\tdiff={:.10f}".format(grad, (l1 - l2) / (2* epsilon), (l1 - l2) / (2* epsilon)- grad))
+        return abs( ( (l1 - l2) / (2.* epsilon) ) - grad)
