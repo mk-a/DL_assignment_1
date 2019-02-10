@@ -13,12 +13,27 @@ def softmax(v):
 
 
 def loss(os,Y):
-    """return the average loss over X"""
+    """ return the categorical cross entropy loss over f(X),Y
+        os is the output of the neural net
+        Y is the expected output
+    """
     loss = 0
     for i in range(Y.size):
         loss -= math.log(os[Y[i],i])
     return loss/Y.size
 
+def categorical_cross_entropy(pred, expect):
+    """ return the categorical cross entropy between the expected classes and the predictions
+
+        pred : 2 dimensional array of the predicted probabilities
+            pred.shape must be : (number of samples, number of classes).
+            You must transpose the output of the NN before compute the categorical cross entropy !!
+
+        expect : 2 dimensional array of the onehot encoding of the classes
+            Y.shape must be : (number of samples, number of classes).
+    """
+
+    return -np.sum( np.log( (pred*expect)[ (pred*expect) > 0]) ) / pred.shape[0]
 
 def onehot(Y, m):
     ret = np.zeros((Y.shape[0],m))
@@ -72,7 +87,7 @@ class Tanh(Activation_function):
 class MLP_2L:
     """ A simple implementation of a multi layers perceptron with two hidden layers. """
     def __init__(self, input_size, n1, n2, output_size, init="normal",\
-                    activation="identity", l1=0, l2=0, quiet=False):
+                    activation="identity", l1=0, l2=0, verbose=True):
         """ Initialises a two layers MLP.
 
             Parameters
@@ -112,7 +127,7 @@ class MLP_2L:
         """
 
         n_parameter = n1 * (input_size + 1) + n2 * (n1 + 1) + output_size * (n2 + 1)
-        if not quiet :
+        if verbose :
             print("Input dimension {:d}\tLayer 1 dimension {:d}\tLayer 2 dimension {:d}\tOutput dimension {:d}\t Initilization method {:s}\tActivation function {:s}".format(input_size, n1, n2, output_size, init, str(activation)))
             print("Total number of parameters : {:d}".format(n_parameter))
 
@@ -211,28 +226,119 @@ class MLP_2L:
         self.b1 -= learning_rate * self.grad_b1.sum(axis=1).reshape((-1,1)) / batch_size
 
 
-    def fit(self,X, Y, epochs, batch_size, learning_rate, quiet=False):
+    def fit(self,X, Y, epochs, batch_size, learning_rate, validation_data=None, verbose=True, previous=None):
+        """ Train the model for a given number of epochs
+
+            return a dictionary with accuracy and loss on the training and if present the validation set
+
+            Parameters
+            --------
+            X : two dimensional array
+                The training data
+
+            Y : one dimensional array
+                The training targets.
+
+            epochs : int
+                Number of epochs on which the model is trained
+
+            batch_size : int
+
+            learning_rate : float
+
+            validation_data : tuple of two arrays
+                If not none the accuracy will be calculated on it. The model will not be train on this data
+                first element must by a 2 dimensional array
+                second element must be a one dimensional array
+
+            verbose : boolean
+                allow the function to prinf informations about the traning
+
+            previous : dictionary
+                dictionnary returned by a previous training. It allows to add the new loss and accuracy to the tail of the lists
+        """
+        if validation_data != None:
+            X_valid , Y_valid = validation_data
+
+        if previous == None:
+            prev_epoch = 0 # number of epoch previously done, here it is zero
+            t_acc_list = []
+            t_loss_list = []
+            epoch_list = []
+            if validation_data != None:
+                v_acc_list = []
+                v_loss_list = []
+        else:
+            prev_epoch = previous["epoch"][-1] # number of epoch previously done
+            t_acc_list = previous["train_acc"]
+            t_loss_list = previous["train_loss"]
+            epoch_list = previous["epoch"]
+            if validation_data != None:
+                v_acc_list = previous["valid_acc"]
+                v_loss_list = previous["valid_loss"]
+
+        if verbose:
+            if validation_data == None:
+                print("Train on {:d} samples\n".format(Y.size))
+            else :
+                print("Train on {:d} samples\tEvaluate on {:d}\n".format(Y.size, Y_valid.size ))
+
         train_time = time.time()
+
         for epoch in range(epochs):
+            if verbose:
+                print("Epoch {:d}/{:d}\t\tTotal training time {:.1f}s".format(epoch+1, epochs, time.time() - train_time ))
             epoch_time = time.time()
-            pred = 0
+            pred = 0 # counter of well predicted samples
+            loss = 0 # loss over the training set, calculated during the epoch
             for i in range(math.ceil(X.shape[0]/float(batch_size) )):
                 i_min = i * batch_size
                 i_max = min( (i+1) * batch_size, X.shape[0] )
 
-                self.fprop(X[i_min:i_max] )
+                os = self.fprop(X[i_min:i_max] )
                 self.bprop(Y[i_min:i_max], learning_rate)
-
+                loss =  (i_min * loss + (i_max - i_min) * self.loss(X[i_min:i_max], Y[i_min:i_max]) ) / i_max
                 pred += np.sum( (np.argmax(self.os,axis=0) == Y[i_min:i_max] ).astype(int) )
-                if not quiet:
-                    print("Epoch {:d}/{:d}\tExamples {:d}/{:d}\tAccuracy {:.3f}\tEpoch time {:.2f}s\tTraining time {:.2f}s".format(epoch+1, epochs, i_max, X.shape[0], pred/i_max, time.time() - epoch_time, time.time() - train_time), end='\r')
-            if not quiet:
-                print("Epoch {:d}/{:d}\tExamples {:d}/{:d}\tAccuracy {:.3f}\tEpoch time {:.2f}s\tTraining time {:.2f}s".format(epoch+1, epochs, i_max, X.shape[0], self.evaluate(X,Y) , time.time() - epoch_time, time.time() - train_time))
+                if verbose:
+                    print("\tSamples {:d}/{:d}\tEpoch time {:.2f}s\tAccuracy {:.3f}\tLoss {:.3f}".format(i_max, X.shape[0],time.time() - epoch_time, pred/i_max, loss), end='\r')
 
             if np.isnan(self.w1).any() :
+                #This stops the program in case of exploding gradient
                 sys.exit("ERROR : The parameters contain NaNs. Use a smaller learning rate.")
-        if not quiet :
-            print("Total training time {:.2f}s".format(time.time() - train_time))
+
+            t_acc = self.evaluate(X, Y)
+            t_loss = self.loss(X, Y)
+            epoch_list.append(epoch + 1 + prev_epoch)
+            t_acc_list.append(t_acc)
+            t_loss_list.append(t_loss)
+            if validation_data != None:
+                v_acc = self.evaluate(X_valid, Y_valid)
+                v_loss = self.loss(X_valid, Y_valid)
+                v_acc_list.append(v_acc)
+                v_loss_list.append(v_loss)
+
+            if verbose:
+                if validation_data == None:
+                    print("\tSamples {:d}/{:d}\tEpoch time {:.2f}s\tAccuracy {:.3f}\tLoss {:.3f}".format(i_max, X.shape[0],time.time() - epoch_time, t_acc, t_loss ))
+                else:
+                    print("\tSamples {:d}/{:d}\tEpoch time {:.2f}s\tAccuracy {:.3f}\tLoss {:.3f}\tValid accuracy {:.3f}\t Valid loss {:.3f}".format(i_max, X.shape[0],time.time() - epoch_time, t_acc, t_loss, v_acc, v_loss ) )
+
+        if verbose :
+            print("\nTotal training time {:.2f}s".format(time.time() - train_time))
+
+        if validation_data == None:
+            ret = {"epoch" : epoch_list, "train_acc" : t_acc_list, "train_loss" : t_loss_list}
+        else :
+            ret = {"epoch" : epoch_list, "train_acc" : t_acc_list, "train_loss" : t_loss_list, "valid_acc" : v_acc_list, "valid_loss" : v_loss_list}
+
+        return ret
+
+    def loss(self, X, Y):
+        """ Compute the loss over the input X and the expected classes Y
+        """
+        l1 = np.sum(np.absolute(self.w1)) + np.sum(np.absolute(self.b1)) + np.sum(np.absolute(self.w2)) + np.sum(np.absolute(self.b2)) + np.sum(np.absolute(self.w3)) + np.sum(np.absolute(self.b3))
+        l2 = np.sum(np.power(self.w1,2)) + np.sum(np.power(self.b1,2)) + np.sum(np.power(self.w2,2)) + np.sum(np.power(self.b2,2)) + np.sum(np.power(self.w3,2)) + np.sum(np.power(self.b3, 2))
+        return categorical_cross_entropy(self.fprop(X).T, onehot(Y,self.output_size)) + self.l1 * l1 + self.l2 * l2
 
     def predict(self,X):
         self.fprop(X)
@@ -266,7 +372,7 @@ class MLP_2L:
     def load_model(filename):
         with open(filename, 'rb') as handle:
             dic = pickle.load(handle)
-        tmp = MLP_2L(dic["input_size"], dic["n1"], dic["n2"], dic["output_size"], init="load", activation=dic["activation"], c=dic["c"], l1=dic["l1"], l2=dic["l2"])
+        tmp = MLP_2L(dic["input_size"], dic["n1"], dic["n2"], dic["output_size"], init="load", activation=dic["activation"], l1=dic["l1"], l2=dic["l2"])
 
         tmp.w1 = dic["w1"]
         tmp.b1 = dic["b1"]
