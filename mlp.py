@@ -11,17 +11,6 @@ def softmax(v):
     # print(e_x / e_x.sum(axis=0))
     return e_x / e_x.sum(axis=0)
 
-
-def loss(os,Y):
-    """ return the categorical cross entropy loss over f(X),Y
-        os is the output of the neural net
-        Y is the expected output
-    """
-    loss = 0
-    for i in range(Y.size):
-        loss -= math.log(os[Y[i],i])
-    return loss/Y.size
-
 def categorical_cross_entropy(pred, expect):
     """ return the categorical cross entropy between the expected classes and the predictions
 
@@ -187,7 +176,7 @@ class MLP_2L:
         return self.os
     def bprop(self, Y, learning_rate):
         """ We assume fprop has been run before bprop
-            This function calculate the gradient and update the weights after
+            This function calculate the gradient and update the weights.
         """
 
         batch_size = Y.size
@@ -215,18 +204,27 @@ class MLP_2L:
         self.grad_w1 = np.dot(self.grad_a1, self.X) + self.l1 * self.w1 / ( np.abs(self.w1) + (self.w1 == 0).astype(int) ) + 2 * self.l2 * self.w1
         self.grad_b1 = self.grad_h1 + self.l1 * self.b1 / ( np.abs(self.b1) + (self.b1 == 0).astype(int) ) + 2 * self.l2 * self.b1
 
+        self.grad_w3 = self.grad_w3 / batch_size
+        self.grad_b3 = self.grad_b3.sum(axis=1).reshape((-1,1)) / batch_size
+
+        self.grad_w2 = self.grad_w2 / batch_size
+        self.grad_b2 = self.grad_b2.sum(axis=1).reshape((-1,1)) / batch_size
+
+        self.grad_w1 = self.grad_w1 / batch_size
+        self.grad_b1 = self.grad_b1.sum(axis=1).reshape((-1,1)) / batch_size
+
         #weight update
-        self.w3 -= learning_rate * self.grad_w3 / batch_size
-        self.b3 -= learning_rate * self.grad_b3.sum(axis=1).reshape((-1,1)) / batch_size
+        self.w3 -= learning_rate * self.grad_w3
+        self.b3 -= learning_rate * self.grad_b3
 
-        self.w2 -= learning_rate * self.grad_w2 / batch_size
-        self.b2 -= learning_rate * self.grad_b2.sum(axis=1).reshape((-1,1)) / batch_size
+        self.w2 -= learning_rate * self.grad_w2
+        self.b2 -= learning_rate * self.grad_b2
 
-        self.w1 -= learning_rate * self.grad_w1 / batch_size
-        self.b1 -= learning_rate * self.grad_b1.sum(axis=1).reshape((-1,1)) / batch_size
+        self.w1 -= learning_rate * self.grad_w1
+        self.b1 -= learning_rate * self.grad_b1
 
 
-    def fit(self,X, Y, epochs, batch_size, learning_rate, validation_data=None, verbose=True, previous=None):
+    def fit(self,X, Y, epochs, batch_size, learning_rate, validation_data=None, epsilon=None, verbose=True, previous=None):
         """ Train the model for a given number of epochs
 
             return a dictionary with accuracy and loss on the training and if present the validation set
@@ -247,9 +245,12 @@ class MLP_2L:
             learning_rate : float
 
             validation_data : tuple of two arrays
-                If not none the accuracy will be calculated on it. The model will not be train on this data
+                If not None the accuracy will be calculated on it. The model will not be train on this data
                 first element must by a 2 dimensional array
                 second element must be a one dimensional array
+
+            epsilon : float
+                early stopping criteria. optional
 
             verbose : boolean
                 allow the function to prinf informations about the traning
@@ -281,7 +282,7 @@ class MLP_2L:
             if validation_data == None:
                 print("Train on {:d} samples\n".format(Y.size))
             else :
-                print("Train on {:d} samples\tEvaluate on {:d}\n".format(Y.size, Y_valid.size ))
+                print("Train on {:d} samples\tEvaluate on {:d}\n samples".format(Y.size, Y_valid.size ))
 
         train_time = time.time()
 
@@ -297,6 +298,7 @@ class MLP_2L:
 
                 os = self.fprop(X[i_min:i_max] )
                 self.bprop(Y[i_min:i_max], learning_rate)
+
                 loss =  (i_min * loss + (i_max - i_min) * self.loss(X[i_min:i_max], Y[i_min:i_max]) ) / i_max
                 pred += np.sum( (np.argmax(self.os,axis=0) == Y[i_min:i_max] ).astype(int) )
                 if verbose:
@@ -322,6 +324,10 @@ class MLP_2L:
                     print("\tSamples {:d}/{:d}\tEpoch time {:.2f}s\tAccuracy {:.3f}\tLoss {:.3f}".format(i_max, X.shape[0],time.time() - epoch_time, t_acc, t_loss ))
                 else:
                     print("\tSamples {:d}/{:d}\tEpoch time {:.2f}s\tAccuracy {:.3f}\tLoss {:.3f}\tValid accuracy {:.3f}\t Valid loss {:.3f}".format(i_max, X.shape[0],time.time() - epoch_time, t_acc, t_loss, v_acc, v_loss ) )
+            if validation_data != None and epsilon != None and len(v_loss_list) > 1 and abs(v_loss_list[-2] - v_loss) < epsilon:
+                print("Early stopping")
+                break
+
 
         if verbose :
             print("\nTotal training time {:.2f}s".format(time.time() - train_time))
