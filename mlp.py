@@ -342,8 +342,14 @@ class MLP_2L:
     def loss(self, X, Y):
         """ Compute the loss over the input X and the expected classes Y
         """
-        l1 = np.sum(np.absolute(self.w1)) + np.sum(np.absolute(self.b1)) + np.sum(np.absolute(self.w2)) + np.sum(np.absolute(self.b2)) + np.sum(np.absolute(self.w3)) + np.sum(np.absolute(self.b3))
-        l2 = np.sum(np.power(self.w1,2)) + np.sum(np.power(self.b1,2)) + np.sum(np.power(self.w2,2)) + np.sum(np.power(self.b2,2)) + np.sum(np.power(self.w3,2)) + np.sum(np.power(self.b3, 2))
+        if self.l1 == 0:
+            l1 = 0
+        else:
+            l1 = np.sum(np.absolute(self.w1)) + np.sum(np.absolute(self.b1)) + np.sum(np.absolute(self.w2)) + np.sum(np.absolute(self.b2)) + np.sum(np.absolute(self.w3)) + np.sum(np.absolute(self.b3))
+        if self.l2 ==0:
+            l2 = 0
+        else:
+            l2 = np.sum(np.power(self.w1,2)) + np.sum(np.power(self.b1,2)) + np.sum(np.power(self.w2,2)) + np.sum(np.power(self.b2,2)) + np.sum(np.power(self.w3,2)) + np.sum(np.power(self.b3, 2))
         return categorical_cross_entropy(self.fprop(X).T, onehot(Y,self.output_size)) + self.l1 * l1 + self.l2 * l2
 
     def predict(self,X):
@@ -403,17 +409,11 @@ class MLP_2L:
         j = index % self.w2.shape[1]
         #this will allow us to access to the index value of w2 with w2[i,j]
 
-        print("initial value {:.5f}".format(self.w2[i,j]))
         grad = self.grad_w2[i,j] # store the value of the grad
         self.w2[i,j] += epsilon # change the value of the index value of w2
-        print("- epsilon {:.5f}".format(self.w2[i,j]))
-        l1 = loss(self.fprop(x),y)
+        l1 = self.loss(x,y)
         self.w2[i,j] -= 2 * epsilon # rechange the index value of w2
-        print("+ epsilon {:.5f}".format(self.w2[i,j]))
-        l2 = loss(self.fprop(x),y)
+        l2 = self.loss(x,y)
 
         self.w2[i,j] += epsilon # reset to the initial value
-        print("initial value after {:.5f}".format(self.w2[i,j]))
-        print("l1 = {:.5f}\tl2 = {:.5f}".format(l1,l2))
-        print("grad={:.5f}\tfinite={:.5f}\tdiff={:.10f}".format(grad, (l1 - l2) / (2* epsilon), (l1 - l2) / (2* epsilon)- grad))
         return abs( ( (l1 - l2) / (2.* epsilon) ) - grad)
