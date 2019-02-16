@@ -4,6 +4,7 @@ import math
 import sys
 import time
 import pickle
+import random
 
 def softmax(v):
     # print(v)
@@ -58,7 +59,7 @@ class ReLU(Activation_function):
     def __str__(self):
         return "ReLU"
     def __call__(self, x):
-        return x + (x > 0)
+        return x * (x > 0)
     def derivative(self, x):
         return 1. * (x > 0)
 
@@ -285,8 +286,14 @@ class MLP_2L:
                 print("Train on {:d} samples\tEvaluate on {:d}\n samples".format(Y.size, Y_valid.size ))
 
         train_time = time.time()
-
+        inputs = X
+        labels = Y
         for epoch in range(epochs):
+            data = list(zip(inputs, labels))
+            random.shuffle(data)
+            X, Y = zip(*data)
+            X = np.array(X)
+            Y = np.array(Y)
             if verbose:
                 print("Epoch {:d}/{:d}\t\tTotal training time {:.1f}s".format(epoch+1, epochs, time.time() - train_time ))
             epoch_time = time.time()
@@ -297,10 +304,12 @@ class MLP_2L:
                 i_max = min( (i+1) * batch_size, X.shape[0] )
 
                 os = self.fprop(X[i_min:i_max] )
-                self.bprop(Y[i_min:i_max], learning_rate)
-
                 loss =  (i_min * loss + (i_max - i_min) * self.loss(X[i_min:i_max], Y[i_min:i_max]) ) / i_max
                 pred += np.sum( (np.argmax(self.os,axis=0) == Y[i_min:i_max] ).astype(int) )
+                self.bprop(Y[i_min:i_max], learning_rate)
+
+                # print(np.argmax(self.os,axis=0), Y[i_min:i_max], (np.argmax(self.os,axis=0) == Y[i_min:i_max] )  )
+                # print("pred = {:d}\t i_max = {:d}\t acc = {:.3f}".format(pred, i_max, pred/i_max))
                 if verbose:
                     print("\tSamples {:d}/{:d}\tEpoch time {:.2f}s\tAccuracy {:.3f}\tLoss {:.3f}".format(i_max, X.shape[0],time.time() - epoch_time, pred/i_max, loss), end='\r')
 

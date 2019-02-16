@@ -5,6 +5,7 @@ import math
 import sys
 import time
 import pickle
+import random
 
 def softmax(v):
     # print(v)
@@ -285,10 +286,16 @@ class MLP_2L:
                 print("Train on {:d} samples\n".format(Y.size))
             else :
                 print("Train on {:d} samples\tEvaluate on {:d}\n samples".format(Y.size, Y_valid.size ))
-
+        inputs = X
+        labels = Y
         train_time = time.time()
 
         for epoch in range(epochs):
+            data = list(zip(inputs, labels))
+            random.shuffle(data)
+            X, Y = zip(*data)
+            X = np.array(X)
+            Y = np.array(Y)
             if verbose:
                 print("Epoch {:d}/{:d}\t\tTotal training time {:.1f}s".format(epoch+1, epochs, time.time() - train_time ))
             epoch_time = time.time()
@@ -299,10 +306,11 @@ class MLP_2L:
                 i_max = min( (i+1) * batch_size, X.shape[0] )
 
                 os = self.fprop(X[i_min:i_max] )
-                self.bprop(Y[i_min:i_max], learning_rate)
 
                 loss = float( (i_min * loss + (i_max - i_min) * self.loss(X[i_min:i_max], Y[i_min:i_max]) ) / i_max)
                 pred += float( cp.sum( (cp.argmax(self.os,axis=0) == Y[i_min:i_max] ).astype(int) ) )
+
+                self.bprop(Y[i_min:i_max], learning_rate)
                 if verbose:
                     print("\tSamples {:d}/{:d}\tEpoch time {:.2f}s\tAccuracy {:.3f}\tLoss {:.3f}".format(i_max, X.shape[0],time.time() - epoch_time, pred/i_max, loss), end='\r')
 
